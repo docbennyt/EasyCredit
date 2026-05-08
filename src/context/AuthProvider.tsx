@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { APP_URL, SUPERADMIN_EMAIL, isSupabaseConfigured } from "../lib/env";
+import { SUPERADMIN_EMAIL, getAppOrigin, isSupabaseConfigured } from "../lib/env";
 import { supabase } from "../lib/supabaseClient";
 import { getSettings, updateSettings } from "../services/settingsService";
 import { logAppError } from "../services/errorLogService";
@@ -318,7 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${APP_URL}/login`,
+        emailRedirectTo: `${getAppOrigin()}/login`,
         data: {
           full_name: fullName,
         },

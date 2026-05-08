@@ -4,13 +4,15 @@
 
 - Build command: `npm run build`
 - Publish directory: `dist`
+- Functions directory: leave blank unless you intentionally add Netlify Functions later
 
 ## Continuous deployment
 
 1. Push the repository to GitHub
 2. Create a Netlify site from that GitHub repository
 3. Confirm the build command and publish directory above
-4. Add the environment variables from [environment-variables.md](environment-variables.md)
+4. Clear the Functions directory field if Netlify pre-fills `netlify/functions`
+5. Add the environment variables from [environment-variables.md](environment-variables.md)
 
 ## SPA routing
 

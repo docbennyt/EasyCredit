@@ -311,7 +311,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 VITE_ADMIN_EMAILS=dr.bennyt.09@gmail.com
 
 # App
-VITE_APP_URL=https://easycredit.app
+Configure Supabase Auth redirect URLs directly in Supabase for production and local environments.
 ```
 
 **Netlify Environment Variables:**

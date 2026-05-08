@@ -7,7 +7,7 @@
 ## Access model
 
 1. Log in with Supabase Auth
-2. Match the email against `VITE_SUPERADMIN_EMAIL`
+2. Match the email against the built-in allowlisted superadmin email
 3. The frontend upserts the `profiles` row with role `superadmin`
 4. `/admin` allows only that role
 

@@ -4,8 +4,6 @@
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_APP_URL`
-- `VITE_SUPERADMIN_EMAIL`
 
 ## Auth redirect URLs
 
@@ -36,7 +34,7 @@ It also enables RLS and adds baseline policies.
 ## Superadmin bootstrap
 
 1. Sign up or log in with `dr.bennyt.09@gmail.com`
-2. Make sure `VITE_SUPERADMIN_EMAIL=dr.bennyt.09@gmail.com`
+2. The app compares against the built-in allowlisted superadmin email constant
 3. The app upserts the profile and promotes that email to `superadmin`
 4. `/admin` is accessible only after the role is present in `profiles`
 

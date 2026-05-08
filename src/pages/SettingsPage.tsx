@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AppShell } from '../components/AppShell';
-import { TopBar } from '../components/TopBar';
-import { Button } from '../components/Button';
-import { getSettings, resetSettings } from '../services/settingsService';
-import { getBusinessById } from '../services/businessService';
-import { db } from '../services/db';
-import type { Business } from '../types';
-import { Building2, Download, Trash2, Cloud } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AppShell } from "../components/AppShell";
+import { TopBar } from "../components/TopBar";
+import { Button } from "../components/Button";
+import { getSettings, resetSettings } from "../services/settingsService";
+import { getBusinessById } from "../services/businessService";
+import { db } from "../services/db";
+import type { Business } from "../types";
+import { Building2, Download, Trash2, Cloud, DownloadCloud, Shield } from "lucide-react";
+import { usePwaInstall } from "../context/PwaInstallProvider";
+import { useAuth } from "../context/AuthProvider";
 
 export function SettingsPage() {
   const navigate = useNavigate();
+  const { canPromptInstall, isIos, promptInstall, resetPromptDismissal } = usePwaInstall();
+  const { profile, signOut } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -29,7 +33,7 @@ export function SettingsPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to load settings:', error);
+      console.error("Failed to load settings:", error);
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +47,7 @@ export function SettingsPage() {
       const settings = await db.settings.toArray();
 
       const exportData = {
-        version: '1.0',
+        version: "1.0",
         exportedAt: new Date().toISOString(),
         data: {
           businesses,
@@ -53,9 +57,9 @@ export function SettingsPage() {
         },
       };
 
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `easycredit-export-${Date.now()}.json`;
       document.body.appendChild(a);
@@ -63,14 +67,14 @@ export function SettingsPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to export data:', error);
-      alert('Failed to export data. Please try again.');
+      console.error("Failed to export data:", error);
+      alert("Failed to export data. Please try again.");
     }
   };
 
   const handleClearData = async () => {
     const confirmed = window.confirm(
-      'Are you sure you want to clear all local data? This cannot be undone.'
+      "Are you sure you want to clear all local data? This cannot be undone."
     );
 
     if (!confirmed) return;
@@ -81,12 +85,12 @@ export function SettingsPage() {
       await db.ledgerEntries.clear();
       await resetSettings();
       
-      alert('All data cleared successfully.');
-      navigate('/');
+      alert("All data cleared successfully.");
+      navigate("/");
       window.location.reload();
     } catch (error) {
-      console.error('Failed to clear data:', error);
-      alert('Failed to clear data. Please try again.');
+      console.error("Failed to clear data:", error);
+      alert("Failed to clear data. Please try again.");
     }
   };
 
@@ -129,6 +133,43 @@ export function SettingsPage() {
           </Button>
         </div>
 
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+          <div className="flex items-center gap-2 mb-4">
+            <DownloadCloud size={20} className="text-gray-600" />
+            <h2 className="text-lg font-bold text-gray-900">Install App</h2>
+          </div>
+
+          <p className="text-gray-600 mb-4">
+            Install EasyCredit for faster access, offline use, and a mobile-app feel.
+          </p>
+
+          {canPromptInstall ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                void promptInstall();
+              }}
+              className="w-full"
+            >
+              Install EasyCredit
+            </Button>
+          ) : (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-900">
+              {isIos
+                ? "On iPhone or iPad, open Safari, tap Share, then choose Add to Home Screen."
+                : "The browser install prompt appears only when the app meets installability checks in production."}
+            </div>
+          )}
+
+          <Button
+            variant="secondary"
+            onClick={resetPromptDismissal}
+            className="w-full mt-3"
+          >
+            Re-enable install prompt
+          </Button>
+        </div>
+
         {/* Sync Section */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
           <div className="flex items-center gap-2 mb-4">
@@ -137,14 +178,38 @@ export function SettingsPage() {
           </div>
           
           <p className="text-gray-600 mb-4">
-            Cloud sync is coming soon. Currently all data is stored locally on your device.
+            Supabase authentication is wired in. The current data layer remains local-first while
+            production Supabase tables and policies are prepared for controlled rollout.
           </p>
 
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <p className="text-sm text-purple-900">
-              <strong>Future features:</strong> Supabase authentication, cloud backup, multi-device sync, and collaboration.
+              <strong>Production note:</strong> Never expose the Supabase service role key in the
+              frontend. Use the anon key only, with Row Level Security enabled on all user data.
             </p>
           </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield size={20} className="text-gray-600" />
+            <h2 className="text-lg font-bold text-gray-900">Account</h2>
+          </div>
+
+          <div className="text-sm text-gray-600 mb-4">
+            <p>Signed in as: {profile?.email ?? "Not signed in"}</p>
+            <p className="mt-1">Role: {profile?.role ?? "guest"}</p>
+          </div>
+
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void signOut().then(() => navigate("/login"));
+            }}
+            className="w-full"
+          >
+            Sign Out
+          </Button>
         </div>
 
         {/* Data Tools */}
@@ -176,8 +241,11 @@ export function SettingsPage() {
 
         {/* App Info */}
         <div className="text-center text-sm text-gray-500">
-          <p>EasyCredit MVP v1.0</p>
-          <p className="mt-1">Built with React, TypeScript, Dexie.js</p>
+          <p>EasyCredit v{__APP_VERSION__}</p>
+          <p className="mt-1">
+            © 2026 EasyCredit. Developed by Dr BennyT (Benedictus T Makuyana). All rights
+            reserved.
+          </p>
         </div>
       </div>
     </AppShell>

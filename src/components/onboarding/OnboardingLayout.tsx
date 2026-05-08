@@ -7,10 +7,15 @@ interface OnboardingLayoutProps {
 }
 
 export function OnboardingLayout({ children, currentStep, totalSteps }: OnboardingLayoutProps) {
+  const showProgress =
+    typeof currentStep === "number" &&
+    typeof totalSteps === "number" &&
+    totalSteps > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-100 flex items-center justify-center p-4">
       <div className="max-w-lg w-full">
-        {currentStep && totalSteps && (
+        {showProgress && (
           <div className="mb-6">
             <div className="flex items-center justify-center gap-2">
               {Array.from({ length: totalSteps }).map((_, i) => (

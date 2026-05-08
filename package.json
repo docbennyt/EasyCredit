@@ -1,18 +1,23 @@
 {
-  "name": "react-vite-tailwind",
+  "name": "easycredit",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "EasyCredit helps small businesses track customer credit, customer change, follow-ups, and cashflow insights for every venture they manage.",
+  "author": "Dr BennyT (Benedictus T Makuyana) <dr.bennyt.09@gmail.com>",
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "clsx": "2.1.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.4.2",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "0.468.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-router-dom": "^7.15.0",
@@ -28,6 +33,6 @@
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.3.2",
-    "vite-plugin-singlefile": "2.3.0"
+    "vite-plugin-pwa": "^1.1.0"
   }
 }

@@ -1,24 +1,30 @@
 {
   "name": "EasyCredit",
   "short_name": "EasyCredit",
-  "description": "Track customer credit, customer change, and collections without paperwork",
+  "description": "Track customer credit, change, follow-ups, and cashflow.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#7c3aed",
+  "background_color": "#f8f9fc",
+  "theme_color": "#6d2cff",
   "orientation": "portrait",
+  "categories": ["business", "finance", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ]
 }

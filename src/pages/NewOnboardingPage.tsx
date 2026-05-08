@@ -1,26 +1,29 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
-import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
-import { VentureSetupScreen } from '../components/onboarding/VentureSetupScreen';
-import { CustomerSetupScreen } from '../components/onboarding/CustomerSetupScreen';
-import { CustomerFocusScreen } from '../components/onboarding/CustomerFocusScreen';
-import { createBusiness } from '../services/businessService';
-import { createCustomer } from '../services/customerService';
-import { updateSettings } from '../services/settingsService';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { OnboardingLayout } from "../components/onboarding/OnboardingLayout";
+import { WelcomeScreen } from "../components/onboarding/WelcomeScreen";
+import { VentureSetupScreen } from "../components/onboarding/VentureSetupScreen";
+import { CustomerSetupScreen } from "../components/onboarding/CustomerSetupScreen";
+import { CustomerFocusScreen } from "../components/onboarding/CustomerFocusScreen";
+import { createBusiness } from "../services/businessService";
+import { createCustomer } from "../services/customerService";
+import { updateSettings } from "../services/settingsService";
+import { useAuth } from "../context/AuthProvider";
+import { supabase } from "../lib/supabaseClient";
 
-type OnboardingStep = 'welcome' | 'venture' | 'customer' | 'focus';
+type OnboardingStep = "welcome" | "venture" | "customer" | "focus";
 
 export function NewOnboardingPage() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
+  const { user, refreshProfile } = useAuth();
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
   const [isLoading, setIsLoading] = useState(false);
 
   // Data collected during onboarding
-  const [ventureId, setVentureId] = useState<string>('');
-  const [ventureName, setVentureName] = useState<string>('');
-  const [customerId, setCustomerId] = useState<string>('');
-  const [customerName, setCustomerName] = useState<string>('');
+  const [ventureId, setVentureId] = useState<string>("");
+  const [ventureName, setVentureName] = useState<string>("");
+  const [customerId, setCustomerId] = useState<string>("");
+  const [customerName, setCustomerName] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string | undefined>();
 
   const handleWelcomeContinue = () => {
@@ -31,7 +34,7 @@ export function NewOnboardingPage() {
     setIsLoading(true);
     try {
       // Create the venture/business
-      const newBusiness = await createBusiness(name, 'USD');
+      const newBusiness = await createBusiness(name, "USD");
       
       // Save venture info
       setVentureId(newBusiness.id);
@@ -45,8 +48,8 @@ export function NewOnboardingPage() {
       // Move to customer setup
       setCurrentStep('customer');
     } catch (error) {
-      console.error('Failed to create venture:', error);
-      alert('Could not create venture. Please try again.');
+      console.error("Failed to create venture:", error);
+      alert("Could not create venture. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -71,11 +74,21 @@ export function NewOnboardingPage() {
         hasCompletedOnboarding: true,
       });
 
+      if (supabase && user) {
+        await supabase
+          .from("profiles")
+          .update({
+            onboarding_completed: true,
+          })
+          .eq("id", user.id);
+        await refreshProfile();
+      }
+
       // Move to focus screen
-      setCurrentStep('focus');
+      setCurrentStep("focus");
     } catch (error) {
-      console.error('Failed to create customer:', error);
-      alert('Could not add customer. Please try again.');
+      console.error("Failed to create customer:", error);
+      alert("Could not add customer. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -92,11 +105,11 @@ export function NewOnboardingPage() {
   };
 
   const handleGoToDashboard = () => {
-    navigate('/dashboard');
+    navigate("/dashboard");
   };
 
   const getStepNumber = (): number => {
-    const steps: OnboardingStep[] = ['welcome', 'venture', 'customer', 'focus'];
+    const steps: OnboardingStep[] = ["welcome", "venture", "customer", "focus"];
     return steps.indexOf(currentStep);
   };
 

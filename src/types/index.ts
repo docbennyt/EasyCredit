@@ -1,6 +1,7 @@
 // Core business entity
 export interface Business {
   id: string;
+  ownerId?: string;
   name: string;
   currency: string;
   createdAt: string;
@@ -11,6 +12,7 @@ export interface Business {
 export interface Customer {
   id: string;
   businessId: string;
+  ownerId?: string;
   name: string;
   phone?: string;
   notes?: string;
@@ -42,6 +44,7 @@ export interface LedgerEntry {
   id: string;
   businessId: string;
   customerId: string;
+  ownerId?: string;
   type: LedgerEntryType;
   amount: number;
   note?: string;
@@ -57,6 +60,35 @@ export interface AppSettings {
   selectedBusinessId?: string;
   hasCompletedOnboarding: boolean;
   theme: "light" | "dark" | "system";
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  fullName?: string;
+  role: "user" | "superadmin";
+  onboardingCompleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  adminUserId: string;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AppErrorLog {
+  id: string;
+  userId?: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
 }
 
 // Derived types for UI

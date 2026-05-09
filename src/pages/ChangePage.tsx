@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { TopBar } from '../components/TopBar';
+import { Input } from '../components/Input';
 import { EmptyState } from '../components/EmptyState';
 import { Button } from '../components/Button';
 import { getSettings } from '../services/settingsService';
@@ -12,12 +13,14 @@ import { addBalanceToCustomers } from '../lib/calculations';
 import { formatCurrency } from '../lib/currency';
 import { formatDate } from '../lib/dates';
 import type { Business, CustomerWithBalance } from '../types';
-import { Banknote, ArrowUpRight, User } from 'lucide-react';
+import { Banknote, ArrowUpRight, User, Search } from 'lucide-react';
 
 export function ChangePage() {
   const navigate = useNavigate();
   const [business, setBusiness] = useState<Business | null>(null);
   const [customersOwedChange, setCustomersOwedChange] = useState<CustomerWithBalance[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithBalance[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -51,12 +54,30 @@ export function ChangePage() {
         .sort((a, b) => a.balance - b.balance); // Most negative first
 
       setCustomersOwedChange(owedChange);
+      setFilteredCustomers(owedChange);
     } catch (error) {
       console.error('Failed to load change data:', error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      setFilteredCustomers(customersOwedChange);
+      return;
+    }
+
+    setFilteredCustomers(
+      customersOwedChange.filter((customer) =>
+        customer.name.toLowerCase().includes(query) ||
+        customer.phone?.toLowerCase().includes(query) ||
+        customer.notes?.toLowerCase().includes(query) ||
+        Math.abs(customer.balance).toString().includes(query)
+      )
+    );
+  }, [customersOwedChange, searchQuery]);
 
   const totalChangeOwed = customersOwedChange.reduce(
     (sum, customer) => sum + Math.abs(customer.balance),
@@ -98,20 +119,35 @@ export function ChangePage() {
 
         {/* Change List */}
         <div>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+            <Input
+              type="text"
+              placeholder="Search by customer, phone, note, or amount..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
           <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
             <Banknote size={20} className="text-purple-600" />
             Customers Owed Change
           </h2>
 
-          {customersOwedChange.length === 0 ? (
+          {filteredCustomers.length === 0 ? (
             <EmptyState
               icon={<Banknote size={48} />}
-              title="No change owed"
-              description="All clear! You don't owe any customers change at the moment."
+              title={searchQuery ? 'No change records found' : 'No change owed'}
+              description={
+                searchQuery
+                  ? 'Try a different search term.'
+                  : "All clear! You don't owe any customers change at the moment."
+              }
             />
           ) : (
             <div className="space-y-3">
-              {customersOwedChange.map(customer => (
+              {filteredCustomers.map(customer => (
                 <div
                   key={customer.id}
                   className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"

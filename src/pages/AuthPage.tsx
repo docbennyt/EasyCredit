@@ -7,7 +7,7 @@ type AuthMode = "login" | "signup";
 export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signUp, session, profile, isConfigured, loading, authError } = useAuth();
+  const { signIn, signUp, session, profile, isConfigured, loading, authError, needsOnlineLogin } = useAuth();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -115,6 +115,12 @@ export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) 
             </div>
           ) : null}
 
+          {needsOnlineLogin ? (
+            <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              You need to sign in once while online before offline access can work on this device.
+            </div>
+          ) : null}
+
           {message ? (
             <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
               {message}
@@ -189,7 +195,7 @@ export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) 
 
             <button
               type="submit"
-              disabled={submitting || !isConfigured}
+              disabled={submitting || !isConfigured || !window.navigator.onLine}
               className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {submitting ? "Working..." : mode === "login" ? "Login" : "Create account"}

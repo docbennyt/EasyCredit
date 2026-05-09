@@ -4,7 +4,7 @@ import { RouteGate } from "./RouteGate";
 
 export function ProtectedRoute() {
   const location = useLocation();
-  const { loading, session, profile, isConfigured } = useAuth();
+  const { loading, canAccessApp, profile, isConfigured, needsOnlineLogin } = useAuth();
 
   if (!isConfigured) {
     return (
@@ -24,7 +24,16 @@ export function ProtectedRoute() {
     );
   }
 
-  if (!session) {
+  if (!canAccessApp) {
+    if (needsOnlineLogin) {
+      return (
+        <RouteGate
+          title="Offline sign-in unavailable"
+          message="You need to sign in once while online before offline access can work."
+        />
+      );
+    }
+
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 

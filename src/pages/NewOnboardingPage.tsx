@@ -9,7 +9,6 @@ import { createBusiness } from "../services/businessService";
 import { createCustomer } from "../services/customerService";
 import { updateSettings } from "../services/settingsService";
 import { useAuth } from "../context/AuthProvider";
-import { supabase } from "../lib/supabaseClient";
 
 type OnboardingStep = "welcome" | "venture" | "customer" | "focus";
 
@@ -74,13 +73,7 @@ export function NewOnboardingPage() {
         hasCompletedOnboarding: true,
       });
 
-      if (supabase && user) {
-        await supabase
-          .from("profiles")
-          .update({
-            onboarding_completed: true,
-          })
-          .eq("id", user.id);
+      if (user) {
         await refreshProfile();
       }
 

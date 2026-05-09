@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { usePwaInstall } from "../context/PwaInstallProvider";
 import { logAppError } from "../services/errorLogService";
 import { useAuth } from "../context/AuthProvider";
+import { useSyncStatus } from "../hooks/useSyncStatus";
 
 export function AppStatusChrome() {
   const { canPromptInstall, dismissPrompt, isDismissed, isIos, promptInstall } = usePwaInstall();
-  const { user } = useAuth();
+  const { user, canAccessApp } = useAuth();
+  const syncStatus = useSyncStatus();
   const [isOffline, setIsOffline] = useState(!window.navigator.onLine);
   const [showIosHelp, setShowIosHelp] = useState(false);
 
@@ -40,8 +42,20 @@ export function AppStatusChrome() {
     <>
       {isOffline ? (
         <div className="sticky top-0 z-[90] border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-900">
-          You are offline. EasyCredit will keep local screens usable, but cloud auth and sync need a
-          connection.
+          Offline mode - records are saved on this device.
+        </div>
+      ) : null}
+
+      {canAccessApp ? (
+        <div className="sticky top-0 z-[89] border-b border-slate-200 bg-white/95 px-4 py-2 text-center text-xs font-medium text-slate-700 backdrop-blur">
+          {syncStatus.isSyncing
+            ? "Back online - syncing in the background."
+            : syncStatus.unsyncedCount > 0
+              ? `${syncStatus.unsyncedCount} changes waiting to sync.`
+              : syncStatus.lastSyncAt
+                ? `Synced. Last synced: ${new Date(syncStatus.lastSyncAt).toLocaleString()}.`
+                : "Local workspace ready."}
+          {syncStatus.lastError ? " Sync failed. Your records are still saved locally." : ""}
         </div>
       ) : null}
 
@@ -54,7 +68,7 @@ export function AppStatusChrome() {
               </p>
               <p className="mt-1 text-xs text-slate-600">
                 {isIos
-                  ? "On iPhone or iPad, use Safari Share → Add to Home Screen."
+                  ? "On iPhone or iPad, use Safari Share then Add to Home Screen."
                   : "Installability is browser-controlled, so the prompt appears only when supported."}
               </p>
             </div>
@@ -89,8 +103,8 @@ export function AppStatusChrome() {
           </div>
           {showIosHelp && isIos ? (
             <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-700">
-              Open EasyCredit in Safari, tap Share, then choose Add to Home Screen. Once installed,
-              the app opens from the landing page and keeps the same auth flow as the website.
+              Open EasyCredit in Safari, tap Share, then choose Add to Home Screen. After one online
+              sign-in, the installed app can reopen into the workspace from local data.
             </p>
           ) : null}
         </div>

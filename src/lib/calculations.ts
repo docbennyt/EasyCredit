@@ -104,7 +104,7 @@ export function calculateBusinessTotals(
   
   // Count unsynced
   const unsyncedCount = entries.filter(e => 
-    e.syncStatus === 'local' || e.syncStatus === 'pending_sync'
+    e.syncStatus !== 'synced'
   ).length;
 
   return {

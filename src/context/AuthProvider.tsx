@@ -13,6 +13,14 @@ import { supabase } from "../lib/supabaseClient";
 import { getSettings, updateSettings } from "../services/settingsService";
 import { logAppError } from "../services/errorLogService";
 import { logAdminAction } from "../services/adminAuditService";
+import { db } from "../services/db";
+import {
+  cacheProfileSession,
+  clearLocalSessionSnapshot,
+  getLocalSessionSnapshot,
+  updateLastActiveVenture,
+} from "../services/localSessionService";
+import { syncService } from "../services/syncService";
 import type { UserProfile } from "../types";
 
 interface AuthContextValue {
@@ -22,6 +30,9 @@ interface AuthContextValue {
   loading: boolean;
   authError: string | null;
   isConfigured: boolean;
+  canAccessApp: boolean;
+  isOfflineMode: boolean;
+  needsOnlineLogin: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (
     email: string,
@@ -70,14 +81,20 @@ function normalizeProfile(raw: {
   created_at: string | null;
   updated_at: string | null;
 }): UserProfile {
+  const now = new Date().toISOString();
   return {
     id: raw.id,
     email: raw.email ?? "",
     fullName: raw.full_name ?? undefined,
     role: raw.role === "superadmin" ? "superadmin" : "user",
     onboardingCompleted: Boolean(raw.onboarding_completed),
-    createdAt: raw.created_at ?? new Date().toISOString(),
-    updatedAt: raw.updated_at ?? new Date().toISOString(),
+    createdAt: raw.created_at ?? now,
+    updatedAt: raw.updated_at ?? now,
+    deletedAt: null,
+    localUpdatedAt: raw.updated_at ?? now,
+    remoteUpdatedAt: raw.updated_at ?? null,
+    syncStatus: "synced",
+    version: 1,
   };
 }
 
@@ -94,12 +111,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
   const adminLoggedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
     async function bootstrap() {
+      const localSnapshot = getLocalSessionSnapshot();
+      if (localSnapshot) {
+        const cachedProfile = await db.profiles.get(localSnapshot.userId);
+        if (cachedProfile && mounted) {
+          setProfile(cachedProfile);
+          setIsOfflineMode(!window.navigator.onLine);
+        }
+      }
+
       if (!supabase) {
         setLoading(false);
         return;
@@ -121,6 +148,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(currentSession);
       if (currentSession?.user) {
         await loadProfile(currentSession.user);
+        await syncService.init(currentSession.user.id);
+      } else if (localSnapshot && !window.navigator.onLine) {
+        await syncService.init(localSnapshot.userId);
+        setIsOfflineMode(true);
       }
       setLoading(false);
     }
@@ -132,16 +163,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthError(null);
 
       if (!nextSession?.user) {
+        setLoading(false);
+        if (!window.navigator.onLine && getLocalSessionSnapshot()) {
+          setIsOfflineMode(true);
+          return;
+        }
+
         setProfile(null);
         adminLoggedRef.current = null;
-        setLoading(false);
         return;
       }
 
       setLoading(true);
-      void loadProfile(nextSession.user).finally(() => {
-        setLoading(false);
-      });
+      setIsOfflineMode(false);
+      void loadProfile(nextSession.user)
+        .then(() => syncService.init(nextSession.user.id))
+        .finally(() => setLoading(false));
     });
 
     return () => {
@@ -176,6 +213,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (existingProfileError && !isMissingProfileError(existingProfileError)) {
+      if (!window.navigator.onLine) {
+        const cachedProfile = await db.profiles.get(user.id);
+        if (cachedProfile) {
+          setProfile(cachedProfile);
+          cacheProfileSession(cachedProfile);
+          setIsOfflineMode(true);
+          return;
+        }
+      }
+
       setAuthError(existingProfileError.message);
       await logAppError(
         "error",
@@ -191,19 +238,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!existingProfile) {
       const { error: insertError } = await supabase.from("profiles").insert(profilePayload);
-
       if (insertError) {
         setAuthError(
           "EasyCredit could not create the profile row for this authenticated user. Run the Supabase backfill patch, then sign in again."
-        );
-        await logAppError(
-          "error",
-          "Profile insert failed",
-          {
-            source: "AuthProvider.loadProfile",
-            details: insertError.message,
-          },
-          user.id
         );
         return;
       }
@@ -226,28 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthError(
           `The account ${SUPERADMIN_EMAIL} authenticated successfully, but its database role is still not superadmin. Run the backfill patch SQL and sign in again.`
         );
-        await logAppError(
-          "error",
-          "Superadmin promotion failed",
-          {
-            source: "AuthProvider.loadProfile",
-            details: updateError.message,
-          },
-          user.id
-        );
         return;
-      }
-
-      if (updateError && !isSuperadmin) {
-        await logAppError(
-          "warning",
-          "Profile update skipped",
-          {
-            source: "AuthProvider.loadProfile",
-            details: updateError.message,
-          },
-          user.id
-        );
       }
     }
 
@@ -259,15 +275,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       setAuthError(error.message);
-      await logAppError("error", "Profile fetch failed", {
-        source: "AuthProvider.loadProfile",
-        details: error.message,
-      }, user.id);
       return;
     }
 
     const normalized = normalizeProfile(data);
     setProfile(normalized);
+    await db.profiles.put(normalized);
+    cacheProfileSession(normalized);
+    updateLastActiveVenture((await getSettings()).selectedBusinessId);
+    setIsOfflineMode(false);
 
     if (normalized.onboardingCompleted !== settings.hasCompletedOnboarding) {
       await updateSettings({
@@ -298,12 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      const friendlyMessage = normalizeAuthErrorMessage(error.message, email);
-      await logAppError("warning", "Sign in failed", {
-        email,
-        details: error.message,
-      });
-      return { error: friendlyMessage };
+      return { error: normalizeAuthErrorMessage(error.message, email) };
     }
 
     return {};
@@ -326,12 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      const friendlyMessage = normalizeAuthErrorMessage(error.message, email);
-      await logAppError("warning", "Sign up failed", {
-        email,
-        details: error.message,
-      });
-      return { error: friendlyMessage };
+      return { error: normalizeAuthErrorMessage(error.message, email) };
     }
 
     return {
@@ -340,24 +346,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    if (!supabase) {
-      return;
+    if (supabase) {
+      await supabase.auth.signOut();
     }
 
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      setAuthError(error.message);
-      await logAppError("error", "Sign out failed", {
-        details: error.message,
-      }, session?.user.id);
+    const cachedUserId = profile?.id ?? getLocalSessionSnapshot()?.userId;
+    if (cachedUserId) {
+      await db.transaction("rw", [db.profiles, db.businesses, db.customers, db.ledgerEntries, db.syncQueue], async () => {
+        await db.profiles.delete(cachedUserId);
+        await db.businesses.where("ownerId").equals(cachedUserId).delete();
+        await db.customers.where("ownerId").equals(cachedUserId).delete();
+        await db.ledgerEntries.where("ownerId").equals(cachedUserId).delete();
+        await db.syncQueue.where("ownerId").equals(cachedUserId).delete();
+      });
     }
+
+    clearLocalSessionSnapshot();
+    setProfile(null);
+    setSession(null);
+    setIsOfflineMode(false);
   }
 
   async function refreshProfile() {
     if (session?.user) {
       await loadProfile(session.user);
+      return;
+    }
+
+    const snapshot = getLocalSessionSnapshot();
+    if (!snapshot) {
+      return;
+    }
+
+    const cachedProfile = await db.profiles.get(snapshot.userId);
+    if (cachedProfile) {
+      setProfile(cachedProfile);
     }
   }
+
+  const canAccessApp = Boolean(session?.user || (!window.navigator.onLine && profile));
+  const needsOnlineLogin = !window.navigator.onLine && !canAccessApp;
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -367,12 +395,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       authError,
       isConfigured: isSupabaseConfigured,
+      canAccessApp,
+      isOfflineMode,
+      needsOnlineLogin,
       signIn,
       signUp,
       signOut,
       refreshProfile,
     }),
-    [authError, loading, profile, session]
+    [authError, canAccessApp, isOfflineMode, loading, needsOnlineLogin, profile, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

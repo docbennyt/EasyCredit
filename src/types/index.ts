@@ -1,18 +1,36 @@
-// Core business entity
-export interface Business {
+export type SyncStatus =
+  | "synced"
+  | "pending_create"
+  | "pending_update"
+  | "pending_delete"
+  | "sync_failed"
+  | "conflict";
+
+export type SyncQueueOperation = "create" | "update" | "delete";
+export type SyncQueueStatus = "pending" | "processing" | "failed" | "completed";
+export type SyncEntityType = "profile" | "venture" | "customer" | "ledger_entry";
+
+export interface SyncMetadataFields {
+  syncStatus: SyncStatus;
+  localUpdatedAt: string;
+  remoteUpdatedAt?: string | null;
+  deletedAt?: string | null;
+  version?: number;
+}
+
+export interface Business extends SyncMetadataFields {
   id: string;
-  ownerId?: string;
+  ownerId: string;
   name: string;
   currency: string;
   createdAt: string;
   updatedAt: string;
 }
 
-// Customer entity
-export interface Customer {
+export interface Customer extends SyncMetadataFields {
   id: string;
   businessId: string;
-  ownerId?: string;
+  ownerId: string;
   name: string;
   phone?: string;
   notes?: string;
@@ -20,7 +38,6 @@ export interface Customer {
   updatedAt: string;
 }
 
-// Ledger entry types
 export type LedgerEntryType =
   | "credit_given"
   | "payment_received"
@@ -28,41 +45,34 @@ export type LedgerEntryType =
   | "change_returned"
   | "adjustment";
 
-export type LedgerEntryStatus =
-  | "active"
-  | "settled"
-  | "cancelled";
+export type LedgerEntryStatus = "active" | "settled" | "cancelled";
 
-export type SyncStatus =
-  | "local"
-  | "pending_sync"
-  | "synced"
-  | "failed";
-
-// Ledger entry entity
-export interface LedgerEntry {
+export interface LedgerEntry extends SyncMetadataFields {
   id: string;
   businessId: string;
   customerId: string;
-  ownerId?: string;
+  ownerId: string;
   type: LedgerEntryType;
   amount: number;
   note?: string;
   dueDate?: string;
   status: LedgerEntryStatus;
-  syncStatus: SyncStatus;
   createdAt: string;
   updatedAt: string;
 }
 
-// App settings
 export interface AppSettings {
   selectedBusinessId?: string;
   hasCompletedOnboarding: boolean;
   theme: "light" | "dark" | "system";
 }
 
-export interface UserProfile {
+export interface AppSettingsRecord extends AppSettings {
+  key: string;
+  updatedAt: string;
+}
+
+export interface UserProfile extends SyncMetadataFields {
   id: string;
   email: string;
   fullName?: string;
@@ -70,6 +80,45 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SyncQueueItem {
+  id: string;
+  ownerId: string;
+  entityType: SyncEntityType;
+  entityId: string;
+  operation: SyncQueueOperation;
+  payload: unknown;
+  status: SyncQueueStatus;
+  errorMessage?: string | null;
+  retryCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastAttemptAt?: string | null;
+}
+
+export interface SyncMetadataRecord {
+  key: string;
+  value: string;
+  updatedAt: string;
+}
+
+export interface LocalSessionSnapshot {
+  userId: string;
+  email: string;
+  role: "user" | "superadmin";
+  onboardingCompleted: boolean;
+  lastActiveVentureId?: string;
+  lastAppRoute?: string;
+  lastSuccessfulSyncAt?: string | null;
+}
+
+export interface SyncStatusSnapshot {
+  isOnline: boolean;
+  isSyncing: boolean;
+  unsyncedCount: number;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
 }
 
 export interface AdminAuditLog {
@@ -91,11 +140,9 @@ export interface AppErrorLog {
   createdAt: string;
 }
 
-// Derived types for UI
 export type CustomerStatus = "owes_you" | "you_owe" | "settled";
 export type DueStatus = "overdue" | "due_today" | "upcoming" | "no_due_date";
 
-// Business totals for dashboard
 export interface BusinessTotals {
   totalOwedToBusiness: number;
   totalChangeOwedToCustomers: number;
@@ -107,36 +154,31 @@ export interface BusinessTotals {
   unsyncedCount: number;
 }
 
-// Customer with calculated balance
 export interface CustomerWithBalance extends Customer {
   balance: number;
   status: CustomerStatus;
   lastActivityDate?: string;
 }
 
-// Customer risk levels
 export type CustomerRiskLevel = "reliable" | "good" | "watch" | "high_risk";
 
-// Customer with risk scoring
 export interface CustomerWithRisk extends CustomerWithBalance {
   riskLevel: CustomerRiskLevel;
-  riskScore: number; // 0-100
+  riskScore: number;
   riskReason: string;
   daysOverdue?: number;
   overdueAmount?: number;
 }
 
-// Cashflow insights
 export interface CashflowInsights {
   creditGivenTotal: number;
   paymentsReceivedTotal: number;
   changeOwedTotal: number;
   changeReturnedTotal: number;
-  collectionRate: number; // percentage
+  collectionRate: number;
   netCashflow: number;
 }
 
-// Time-based cashflow data
 export interface CashflowDataPoint {
   date: string;
   creditGiven: number;
@@ -145,7 +187,6 @@ export interface CashflowDataPoint {
   changeReturned: number;
 }
 
-// Action item for follow-ups
 export interface ActionItem {
   id: string;
   type: "follow_up" | "return_change" | "collect_payment";

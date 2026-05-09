@@ -2,17 +2,23 @@ import Dexie, { type Table } from "dexie";
 import type {
   AdminAuditLog,
   AppErrorLog,
-  AppSettings,
+  AppSettingsRecord,
   Business,
   Customer,
   LedgerEntry,
+  SyncMetadataRecord,
+  SyncQueueItem,
+  UserProfile,
 } from "../types";
 
 export class EasyCreditDatabase extends Dexie {
+  profiles!: Table<UserProfile>;
   businesses!: Table<Business>;
   customers!: Table<Customer>;
   ledgerEntries!: Table<LedgerEntry>;
-  settings!: Table<AppSettings & { key: string }>;
+  syncQueue!: Table<SyncQueueItem>;
+  settings!: Table<AppSettingsRecord>;
+  syncMetadata!: Table<SyncMetadataRecord>;
   adminAuditLogs!: Table<AdminAuditLog>;
   appErrorLogs!: Table<AppErrorLog>;
 
@@ -32,6 +38,21 @@ export class EasyCreditDatabase extends Dexie {
       ledgerEntries:
         "id, businessId, customerId, ownerId, type, dueDate, status, syncStatus, updatedAt",
       settings: "key",
+      adminAuditLogs: "id, adminUserId, createdAt",
+      appErrorLogs: "id, userId, severity, createdAt",
+    });
+
+    this.version(3).stores({
+      profiles: "id, email, role, onboardingCompleted, updatedAt, syncStatus",
+      businesses:
+        "id, ownerId, name, updatedAt, deletedAt, syncStatus, localUpdatedAt, remoteUpdatedAt",
+      customers:
+        "id, businessId, ownerId, name, phone, updatedAt, deletedAt, syncStatus, localUpdatedAt, remoteUpdatedAt",
+      ledgerEntries:
+        "id, businessId, customerId, ownerId, type, dueDate, status, updatedAt, deletedAt, syncStatus, localUpdatedAt, remoteUpdatedAt",
+      syncQueue: "[entityType+entityId], id, ownerId, status, updatedAt, createdAt",
+      settings: "key, updatedAt",
+      syncMetadata: "key, updatedAt",
       adminAuditLogs: "id, adminUserId, createdAt",
       appErrorLogs: "id, userId, severity, createdAt",
     });

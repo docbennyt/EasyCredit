@@ -10,13 +10,17 @@ import type { Business } from "../types";
 import { Building2, Download, Trash2, Cloud, DownloadCloud, Shield } from "lucide-react";
 import { usePwaInstall } from "../context/PwaInstallProvider";
 import { useAuth } from "../context/AuthProvider";
+import { useSyncStatus } from "../hooks/useSyncStatus";
+import { syncPendingChanges } from "../services/syncService";
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const { canPromptInstall, isIos, promptInstall, resetPromptDismissal } = usePwaInstall();
   const { profile, signOut } = useAuth();
+  const syncStatus = useSyncStatus();
   const [business, setBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingNow, setIsSyncingNow] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -91,6 +95,18 @@ export function SettingsPage() {
     } catch (error) {
       console.error("Failed to clear data:", error);
       alert("Failed to clear data. Please try again.");
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setIsSyncingNow(true);
+    try {
+      await syncPendingChanges();
+    } catch (error) {
+      console.error("Manual sync failed:", error);
+      alert("Sync failed. Your records are still saved locally.");
+    } finally {
+      setIsSyncingNow(false);
     }
   };
 
@@ -178,9 +194,22 @@ export function SettingsPage() {
           </div>
           
           <p className="text-gray-600 mb-4">
-            Supabase authentication is wired in. The current data layer remains local-first while
-            production Supabase tables and policies are prepared for controlled rollout.
+            EasyCredit saves records locally first, then syncs them to Supabase in the background
+            when this device is online.
           </p>
+
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p>{syncStatus.isOnline ? "Online" : "Offline mode"}</p>
+            <p className="mt-1">{syncStatus.unsyncedCount} unsynced changes</p>
+            <p className="mt-1">
+              Last synced: {syncStatus.lastSyncAt ? new Date(syncStatus.lastSyncAt).toLocaleString() : "Not yet"}
+            </p>
+            {syncStatus.lastError ? <p className="mt-1 text-amber-700">{syncStatus.lastError}</p> : null}
+          </div>
+
+          <Button onClick={() => void handleSyncNow()} disabled={isSyncingNow || !syncStatus.isOnline} className="w-full mb-4">
+            {isSyncingNow ? "Syncing..." : "Sync Now"}
+          </Button>
 
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <p className="text-sm text-purple-900">

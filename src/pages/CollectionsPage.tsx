@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { TopBar } from '../components/TopBar';
+import { Input } from '../components/Input';
 import { EmptyState } from '../components/EmptyState';
 import { Button } from '../components/Button';
 import { getSettings } from '../services/settingsService';
@@ -12,7 +13,7 @@ import { getDueStatus } from '../lib/calculations';
 import { formatCurrency } from '../lib/currency';
 import { formatDate } from '../lib/dates';
 import type { Business, Customer, LedgerEntry, DueStatus } from '../types';
-import { AlertCircle, Clock, Calendar, Copy, Check } from 'lucide-react';
+import { AlertCircle, Clock, Calendar, Copy, Check, Search } from 'lucide-react';
 
 interface CollectionItem {
   entry: LedgerEntry;
@@ -24,6 +25,8 @@ export function CollectionsPage() {
   const navigate = useNavigate();
   const [business, setBusiness] = useState<Business | null>(null);
   const [collections, setCollections] = useState<CollectionItem[]>([]);
+  const [filteredCollections, setFilteredCollections] = useState<CollectionItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -66,12 +69,31 @@ export function CollectionsPage() {
         });
 
       setCollections(items);
+      setFilteredCollections(items);
     } catch (error) {
       console.error('Failed to load collections:', error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      setFilteredCollections(collections);
+      return;
+    }
+
+    setFilteredCollections(
+      collections.filter(({ entry, customer }) =>
+        customer.name.toLowerCase().includes(query) ||
+        customer.phone?.toLowerCase().includes(query) ||
+        customer.notes?.toLowerCase().includes(query) ||
+        entry.note?.toLowerCase().includes(query) ||
+        entry.amount.toString().includes(query)
+      )
+    );
+  }, [collections, searchQuery]);
 
   const copyReminder = async (item: CollectionItem) => {
     const { entry, customer } = item;
@@ -103,10 +125,10 @@ export function CollectionsPage() {
     );
   }
 
-  const overdue = collections.filter(c => c.dueStatus === 'overdue');
-  const dueToday = collections.filter(c => c.dueStatus === 'due_today');
-  const upcoming = collections.filter(c => c.dueStatus === 'upcoming');
-  const noDueDate = collections.filter(c => c.dueStatus === 'no_due_date');
+  const overdue = filteredCollections.filter(c => c.dueStatus === 'overdue');
+  const dueToday = filteredCollections.filter(c => c.dueStatus === 'due_today');
+  const upcoming = filteredCollections.filter(c => c.dueStatus === 'upcoming');
+  const noDueDate = filteredCollections.filter(c => c.dueStatus === 'no_due_date');
 
   const CollectionCard = ({ item }: { item: CollectionItem }) => {
     const isCopied = copiedId === item.entry.id;
@@ -168,11 +190,24 @@ export function CollectionsPage() {
       />
 
       <div className="max-w-lg mx-auto p-4 space-y-6">
-        {collections.length === 0 ? (
+        <div className="relative">
+          <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+          <Input
+            type="text"
+            placeholder="Search by customer, phone, note, or amount..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {filteredCollections.length === 0 ? (
           <EmptyState
             icon={<Calendar size={48} />}
-            title="No collections"
-            description="All clear! No overdue or upcoming payments."
+            title={searchQuery ? 'No credit records found' : 'No collections'}
+            description={
+              searchQuery ? 'Try a different search term.' : 'All clear! No overdue or upcoming payments.'
+            }
           />
         ) : (
           <>

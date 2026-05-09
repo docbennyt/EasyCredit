@@ -2,9 +2,11 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppStatusChrome } from "./components/AppStatusChrome";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AdminRoute } from "./components/routing/AdminRoute";
+import { HomeRoute } from "./components/routing/HomeRoute";
 import { OnboardingGuard } from "./components/routing/OnboardingGuard";
 import { OpenAppRedirect } from "./components/routing/OpenAppRedirect";
 import { ProtectedRoute } from "./components/routing/ProtectedRoute";
+import { RouteTracker } from "./components/routing/RouteTracker";
 import { AuthProvider } from "./context/AuthProvider";
 import { PwaInstallProvider } from "./context/PwaInstallProvider";
 import { AddRecordPage } from "./pages/AddRecordPage";
@@ -17,7 +19,6 @@ import { CustomerDetailPage } from "./pages/CustomerDetailPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HealthPage } from "./pages/HealthPage";
-import { LandingPage } from "./pages/LandingPage";
 import { NewOnboardingPage } from "./pages/NewOnboardingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -28,8 +29,9 @@ export default function App() {
         <PwaInstallProvider>
           <BrowserRouter>
             <AppStatusChrome />
+            <RouteTracker />
             <Routes>
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={<HomeRoute />} />
               <Route path="/open" element={<OpenAppRedirect />} />
               <Route path="/health" element={<HealthPage />} />
               <Route path="/login" element={<AuthPage initialMode="login" />} />

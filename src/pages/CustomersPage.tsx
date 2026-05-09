@@ -3,16 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { TopBar } from '../components/TopBar';
 import { Input } from '../components/Input';
+import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
 import { EnhancedCustomerCard } from '../components/EnhancedCustomerCard';
 import { EmptyState } from '../components/EmptyState';
 import { getSettings } from '../services/settingsService';
 import { getBusinessById } from '../services/businessService';
-import { getCustomersByBusiness } from '../services/customerService';
+import { createCustomer, getCustomersByBusiness } from '../services/customerService';
 import { getLedgerEntriesByBusiness } from '../services/ledgerService';
 import { addBalanceToCustomers } from '../lib/calculations';
 import { calculateCustomerRisk, sortCustomersByActionPriority } from '../lib/analytics';
 import type { Business, CustomerWithRisk } from '../types';
-import { Search, Users } from 'lucide-react';
+import { Plus, Search, Users } from 'lucide-react';
 
 export function CustomersPage() {
   const navigate = useNavigate();
@@ -21,6 +23,11 @@ export function CustomersPage() {
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithRisk[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerNotes, setNewCustomerNotes] = useState('');
 
   useEffect(() => {
     loadCustomers();
@@ -34,11 +41,40 @@ export function CustomersPage() {
       const filtered = customers.filter(
         c =>
           c.name.toLowerCase().includes(query) ||
-          c.phone?.toLowerCase().includes(query)
+          c.phone?.toLowerCase().includes(query) ||
+          c.notes?.toLowerCase().includes(query)
       );
       setFilteredCustomers(filtered);
     }
   }, [searchQuery, customers]);
+
+  const handleCreateCustomer = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!business || !newCustomerName.trim()) {
+      return;
+    }
+
+    setIsCreatingCustomer(true);
+    try {
+      const created = await createCustomer(business.id, {
+        name: newCustomerName.trim(),
+        phone: newCustomerPhone.trim() || undefined,
+        notes: newCustomerNotes.trim() || undefined,
+      });
+
+      setShowAddCustomer(false);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setNewCustomerNotes('');
+      await loadCustomers();
+      navigate(`/customer/${created.id}`);
+    } catch (error) {
+      console.error('Failed to create customer:', error);
+      alert('Failed to save customer. Please try again.');
+    } finally {
+      setIsCreatingCustomer(false);
+    }
+  };
 
   const loadCustomers = async () => {
     setIsLoading(true);
@@ -99,12 +135,17 @@ export function CustomersPage() {
           <Search className="absolute left-3 top-3 text-gray-400" size={20} />
           <Input
             type="text"
-            placeholder="Search by name or phone..."
+            placeholder="Search by name, phone, or notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
+
+        <Button onClick={() => setShowAddCustomer(true)} className="w-full">
+          <Plus size={18} className="mr-2 inline" />
+          Add Customer
+        </Button>
 
         {/* Customer List */}
         {filteredCustomers.length === 0 ? (
@@ -130,6 +171,47 @@ export function CustomersPage() {
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={showAddCustomer}
+        onClose={() => {
+          if (!isCreatingCustomer) {
+            setShowAddCustomer(false);
+          }
+        }}
+        title="Add Customer"
+      >
+        <form onSubmit={handleCreateCustomer} className="space-y-4">
+          <Input
+            label="Name"
+            value={newCustomerName}
+            onChange={(e) => setNewCustomerName(e.target.value)}
+            placeholder="Customer name"
+            disabled={isCreatingCustomer}
+          />
+          <Input
+            label="Phone"
+            value={newCustomerPhone}
+            onChange={(e) => setNewCustomerPhone(e.target.value)}
+            placeholder="Phone number"
+            disabled={isCreatingCustomer}
+          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              value={newCustomerNotes}
+              onChange={(e) => setNewCustomerNotes(e.target.value)}
+              placeholder="Notes"
+              rows={3}
+              disabled={isCreatingCustomer}
+              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+            />
+          </div>
+          <Button type="submit" disabled={isCreatingCustomer || !newCustomerName.trim()} className="w-full">
+            {isCreatingCustomer ? 'Saving...' : 'Save Customer'}
+          </Button>
+        </form>
+      </Modal>
     </AppShell>
   );
 }

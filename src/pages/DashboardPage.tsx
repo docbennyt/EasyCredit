@@ -9,8 +9,9 @@ import { InsightCard, InterpretationText } from '../components/InsightCard';
 import { CashflowChart } from '../components/CashflowChart';
 import { ActionListCard } from '../components/ActionListCard';
 import { Button } from '../components/Button';
-import { getSettings } from '../services/settingsService';
+import { getSettings, updateSettings } from '../services/settingsService';
 import { getAllBusinesses } from '../services/businessService';
+import { syncService } from '../services/syncService';
 import { getCustomersByBusiness } from '../services/customerService';
 import { getLedgerEntriesByBusiness } from '../services/ledgerService';
 import { calculateBusinessTotals, addBalanceToCustomers } from '../lib/calculations';
@@ -50,18 +51,56 @@ export function DashboardPage() {
     setIsLoading(true);
     try {
       const settings = await getSettings();
-      const allBusinesses = await getAllBusinesses();
+      let allBusinesses = await getAllBusinesses();
 
+      // If a selectedBusinessId exists and matches a local business, use it.
       if (settings.selectedBusinessId) {
-        const business = allBusinesses.find(b => b.id === settings.selectedBusinessId);
+        const business = allBusinesses.find((b) => b.id === settings.selectedBusinessId);
         if (business) {
           setSelectedBusiness(business);
           const businessCustomers = await getCustomersByBusiness(business.id);
           const businessEntries = await getLedgerEntriesByBusiness(business.id);
           setCustomers(businessCustomers);
           setEntries(businessEntries);
+          return;
         }
       }
+
+      // No valid selected business found locally. If we have local businesses,
+      // pick the first and persist it to settings.
+      const firstLocal = allBusinesses.find((b) => !b.deletedAt);
+      if (firstLocal) {
+        await updateSettings({ selectedBusinessId: firstLocal.id });
+        setSelectedBusiness(firstLocal);
+        const businessCustomers = await getCustomersByBusiness(firstLocal.id);
+        const businessEntries = await getLedgerEntriesByBusiness(firstLocal.id);
+        setCustomers(businessCustomers);
+        setEntries(businessEntries);
+        return;
+      }
+
+      // No local businesses. If online, trigger a sync/pull from remote and retry.
+      if (navigator.onLine) {
+        try {
+          await syncService.syncAll();
+          allBusinesses = await getAllBusinesses();
+          const firstAfterPull = allBusinesses.find((b) => !b.deletedAt);
+          if (firstAfterPull) {
+            await updateSettings({ selectedBusinessId: firstAfterPull.id });
+            setSelectedBusiness(firstAfterPull);
+            const businessCustomers = await getCustomersByBusiness(firstAfterPull.id);
+            const businessEntries = await getLedgerEntriesByBusiness(firstAfterPull.id);
+            setCustomers(businessCustomers);
+            setEntries(businessEntries);
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to pull businesses from remote:', err);
+        }
+      }
+
+      // No businesses found locally and either offline or remote empty.
+      // Leave selectedBusiness null so the recovery UI is shown.
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -80,13 +119,42 @@ export function DashboardPage() {
   }
 
   if (!selectedBusiness) {
+    const handleCreateBusiness = () => navigate('/onboarding');
+    const handleRetry = async () => {
+      setIsLoading(true);
+      try {
+        if (navigator.onLine) {
+          await syncService.syncAll();
+          await loadData();
+        }
+      } catch (err) {
+        console.error('Retry sync failed', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     return (
       <AppShell hideNav>
         <div className="flex items-center justify-center min-h-screen p-4">
           <EmptyState
-            title="No business selected"
-            description="Please select or create a business to continue."
+            title={navigator.onLine ? 'No business selected' : 'No business saved on this device'}
+            description={
+              navigator.onLine
+                ? 'No businesses are available locally. Create one or retry syncing from the cloud.'
+                : "EasyCredit can open offline after your business data has been saved on this device. Reconnect once to sync your businesses, or create a business offline."
+            }
+            action={{ label: 'Create business', onClick: handleCreateBusiness }}
           />
+
+          <div className="mt-4 space-x-2">
+            <Button onClick={handleRetry} variant="secondary">
+              Retry sync
+            </Button>
+            <Button onClick={() => navigate('/settings')} variant="ghost">
+              Sign out / settings
+            </Button>
+          </div>
         </div>
       </AppShell>
     );

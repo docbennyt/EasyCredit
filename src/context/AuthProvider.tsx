@@ -124,6 +124,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cachedProfile && mounted) {
           setProfile(cachedProfile);
           setIsOfflineMode(!window.navigator.onLine);
+        } else if (mounted) {
+          // Build a minimal profile from the local session snapshot so
+          // offline-installed PWAs can boot to the dashboard even when
+          // the local Dexie profile record isn't present.
+          const now = new Date().toISOString();
+          const minimal = {
+            id: localSnapshot.userId,
+            email: localSnapshot.email ?? "",
+            fullName: undefined,
+            role: localSnapshot.role ?? "user",
+            onboardingCompleted: Boolean(localSnapshot.onboardingCompleted),
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            localUpdatedAt: now,
+            remoteUpdatedAt: null,
+            syncStatus: "synced",
+            version: 1,
+          } as unknown as UserProfile;
+
+          setProfile(minimal);
+          setIsOfflineMode(!window.navigator.onLine);
         }
       }
 
@@ -150,6 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadProfile(currentSession.user);
         await syncService.init(currentSession.user.id);
       } else if (localSnapshot && !window.navigator.onLine) {
+        // If we are offline but have a local snapshot, initialize sync
+        // with the cached user id. The profile is already set above from
+        // the local DB or minimal snapshot, so avoid additional network
+        // lookups that would surface migration errors.
         await syncService.init(localSnapshot.userId);
         setIsOfflineMode(true);
       }
@@ -237,6 +263,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!existingProfile) {
+      // If we're offline, don't try to create the profile remotely — use
+      // the cached/local snapshot instead and defer creation until online.
+      if (!window.navigator.onLine) {
+        const cachedProfile = await db.profiles.get(user.id);
+        if (cachedProfile) {
+          setProfile(cachedProfile);
+          cacheProfileSession(cachedProfile);
+          setIsOfflineMode(true);
+          return;
+        }
+
+        const snapshot = getLocalSessionSnapshot();
+        if (snapshot) {
+          const now = new Date().toISOString();
+          const minimal = {
+            id: snapshot.userId,
+            email: snapshot.email ?? "",
+            fullName: undefined,
+            role: snapshot.role ?? "user",
+            onboardingCompleted: Boolean(snapshot.onboardingCompleted),
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            localUpdatedAt: now,
+            remoteUpdatedAt: null,
+            syncStatus: "synced",
+            version: 1,
+          } as unknown as UserProfile;
+
+          setProfile(minimal);
+          cacheProfileSession(minimal);
+          setIsOfflineMode(true);
+          return;
+        }
+
+        // No local profile available; present a clearer offline message
+        setAuthError("Cloud profile unavailable. Use this device after signing in once while online.");
+        return;
+      }
+
       const { error: insertError } = await supabase.from("profiles").insert(profilePayload);
       if (insertError) {
         setAuthError(
@@ -274,6 +340,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single();
 
     if (error) {
+      // If the fetch failed due to network, try to use the local cached
+      // profile or the local session snapshot. Only treat this as a
+      // hard error when online and Supabase returns a genuine error.
+      if (!window.navigator.onLine) {
+        const cachedProfile = await db.profiles.get(user.id);
+        if (cachedProfile) {
+          setProfile(cachedProfile);
+          cacheProfileSession(cachedProfile);
+          setIsOfflineMode(true);
+          return;
+        }
+
+        const snapshot = getLocalSessionSnapshot();
+        if (snapshot) {
+          const now = new Date().toISOString();
+          const minimal = {
+            id: snapshot.userId,
+            email: snapshot.email ?? "",
+            fullName: undefined,
+            role: snapshot.role ?? "user",
+            onboardingCompleted: Boolean(snapshot.onboardingCompleted),
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            localUpdatedAt: now,
+            remoteUpdatedAt: null,
+            syncStatus: "synced",
+            version: 1,
+          } as unknown as UserProfile;
+
+          setProfile(minimal);
+          cacheProfileSession(minimal);
+          setIsOfflineMode(true);
+          return;
+        }
+      }
+
       setAuthError(error.message);
       return;
     }

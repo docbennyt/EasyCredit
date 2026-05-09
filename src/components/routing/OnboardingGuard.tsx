@@ -28,8 +28,8 @@ export function OnboardingGuard() {
     if (needsOnlineLogin) {
       return (
         <RouteGate
-          title="Offline sign-in unavailable"
-          message="You need to sign in once while online before offline access can work."
+          title="Offline access not ready"
+          message="Sign in once while online so EasyCredit can prepare this device for offline use."
         />
       );
     }
@@ -38,6 +38,15 @@ export function OnboardingGuard() {
   }
 
   if (!profile) {
+    if (!window.navigator.onLine) {
+      return (
+        <RouteGate
+          title="Opening EasyCredit offline"
+          message="Your cloud profile is unavailable right now, so EasyCredit is using the records saved on this device."
+        />
+      );
+    }
+
     return (
       <RouteGate
         title="Profile setup incomplete"

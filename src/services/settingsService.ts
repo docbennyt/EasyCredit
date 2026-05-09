@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { getCurrentTimestamp } from "../lib/dates";
 import { enqueueChange } from "./syncService";
-import { getCachedUserId, updateLastActiveVenture } from "./localSessionService";
+import { getCachedUserId, updateLastActiveVenture, cacheProfileSession } from "./localSessionService";
 import type { AppSettings } from "../types";
 
 const SETTINGS_KEY = "app_settings";
@@ -45,6 +45,42 @@ export async function updateSettings(updates: Partial<AppSettings>): Promise<voi
       onboardingCompleted: updated.hasCompletedOnboarding,
       updatedAt,
     });
+
+    // Update the local cached session/profile so offline boot respects
+    // the new onboardingCompleted value immediately.
+    try {
+      const existing = await db.profiles.get(ownerId);
+      const now = getCurrentTimestamp();
+      const minimal = existing
+        ? {
+            ...existing,
+            onboardingCompleted: updated.hasCompletedOnboarding,
+            updatedAt: now,
+            localUpdatedAt: now,
+            syncStatus: existing.syncStatus ?? "pending_update",
+          }
+        : {
+            id: ownerId,
+            email: "",
+            fullName: undefined,
+            role: "user",
+            onboardingCompleted: updated.hasCompletedOnboarding,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            localUpdatedAt: now,
+            remoteUpdatedAt: null,
+            syncStatus: "pending_create",
+            version: 1,
+          };
+
+      await db.profiles.put(minimal as any);
+      // cacheProfileSession expects a UserProfile shape; import locally to call it
+      // Avoid circular import by requiring it here.
+      cacheProfileSession(minimal as any);
+    } catch (err) {
+      void err;
+    }
   }
 }
 
